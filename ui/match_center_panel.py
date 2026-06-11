@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import customtkinter as ctk
 
 from data.flag_cache import FlagCache
+from data.time_utils import local_now
 from data.tournament import TournamentState
 from models.match import Match
+from ui import theme
 from ui.widgets import StatBar
 
 LIVE_ACCENT = "#c0392b"
@@ -22,12 +22,21 @@ class MatchCenterPanel(ctk.CTkFrame):
         self._image_refs: list[ctk.CTkImage] = []
         self._countdown_job: str | None = None
 
-        self._header = ctk.CTkLabel(
-            self,
+        header_row = ctk.CTkFrame(self, fg_color="transparent")
+        header_row.pack(fill="x", padx=16, pady=(12, 6))
+
+        ctk.CTkLabel(
+            header_row,
             text="Match Center",
-            font=ctk.CTkFont(size=20, weight="bold"),
-        )
-        self._header.pack(pady=(16, 8), padx=16, anchor="w")
+            font=theme.font(theme.PANEL_TITLE, "bold"),
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            header_row,
+            text="Times in your local timezone",
+            font=theme.font(theme.SCHEDULE_DATE),
+            text_color="#777777",
+        ).pack(side="right", padx=(0, 4))
 
         self._live_container = ctk.CTkFrame(self, fg_color="#1a1a1a", corner_radius=12)
         self._schedule_scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -53,7 +62,7 @@ class MatchCenterPanel(ctk.CTkFrame):
     def _show_live(self, match: Match) -> None:
         self._clear_countdown()
         self._schedule_scroll.pack_forget()
-        self._live_container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self._live_container.pack(fill="both", expand=True, padx=12, pady=(0, 10))
 
         if not self._live_widgets_built:
             self._build_live_dashboard()
@@ -66,9 +75,9 @@ class MatchCenterPanel(ctk.CTkFrame):
             self._live_container,
             text="● LIVE",
             text_color=LIVE_ACCENT,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=theme.font(theme.LIVE_BADGE, "bold"),
         )
-        badge.pack(pady=(14, 4))
+        badge.pack(pady=(12, 4))
 
         score_row = ctk.CTkFrame(self._live_container, fg_color="transparent")
         score_row.pack(fill="x", padx=20, pady=8)
@@ -76,31 +85,37 @@ class MatchCenterPanel(ctk.CTkFrame):
         self._home_side = ctk.CTkFrame(score_row, fg_color="transparent")
         self._home_side.pack(side="left", expand=True)
         self._home_flag = ctk.CTkLabel(self._home_side, text="")
-        self._home_flag.pack(side="left", padx=(0, 8))
+        self._home_flag.pack(side="left", padx=(0, 10))
         self._home_name = ctk.CTkLabel(
-            self._home_side, text="", font=ctk.CTkFont(size=18, weight="bold")
+            self._home_side, text="", font=theme.font(theme.LIVE_TEAM, "bold")
         )
         self._home_name.pack(side="left")
 
         center = ctk.CTkFrame(score_row, fg_color="transparent")
         center.pack(side="left", padx=16)
         self._score_label = ctk.CTkLabel(
-            center, text="0 - 0", font=ctk.CTkFont(size=32, weight="bold")
+            center, text="0 - 0", font=theme.font(theme.LIVE_SCORE, "bold")
         )
         self._score_label.pack()
         self._clock_label = ctk.CTkLabel(
-            center, text="0'", font=ctk.CTkFont(size=14), text_color="#aaaaaa"
+            center,
+            text="0'",
+            font=theme.font(theme.LIVE_CLOCK),
+            text_color="#aaaaaa",
         )
         self._clock_label.pack()
 
         self._away_side = ctk.CTkFrame(score_row, fg_color="transparent")
         self._away_side.pack(side="right", expand=True)
         self._away_name = ctk.CTkLabel(
-            self._away_side, text="", font=ctk.CTkFont(size=18, weight="bold"), anchor="e"
+            self._away_side,
+            text="",
+            font=theme.font(theme.LIVE_TEAM, "bold"),
+            anchor="e",
         )
         self._away_name.pack(side="right")
         self._away_flag = ctk.CTkLabel(self._away_side, text="")
-        self._away_flag.pack(side="right", padx=(8, 0))
+        self._away_flag.pack(side="right", padx=(10, 0))
 
         self._stats_frame = ctk.CTkFrame(self._live_container, fg_color="transparent")
         self._stats_frame.pack(fill="x", padx=20, pady=(8, 4))
@@ -113,34 +128,34 @@ class MatchCenterPanel(ctk.CTkFrame):
             "corners": StatBar(self._stats_frame, "Corner Kicks"),
         }
         for bar in self._stat_bars.values():
-            bar.pack(fill="x", pady=6)
+            bar.pack(fill="x", pady=5)
 
         self._stats_unavailable = ctk.CTkLabel(
             self._live_container,
             text="Detailed match stats will appear when available.",
-            font=ctk.CTkFont(size=12),
+            font=theme.font(theme.LIVE_EVENTS_BODY),
             text_color="#888888",
         )
 
         events_label = ctk.CTkLabel(
             self._live_container,
             text="Live Events",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=theme.font(theme.LIVE_EVENTS_TITLE, "bold"),
             anchor="w",
         )
-        events_label.pack(fill="x", padx=20, pady=(12, 4))
+        events_label.pack(fill="x", padx=20, pady=(10, 4))
 
         self._events_log = ctk.CTkTextbox(
             self._live_container,
-            height=160,
-            font=ctk.CTkFont(size=12),
+            height=200,
+            font=theme.font(theme.LIVE_EVENTS_BODY),
             activate_scrollbars=True,
         )
-        self._events_log.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+        self._events_log.pack(fill="both", expand=True, padx=20, pady=(0, 14))
         self._events_log.configure(state="disabled")
 
-    def _set_flag(self, label: ctk.CTkLabel, url: str) -> None:
-        image = self._flag_cache.get_ctk_image(self, url)
+    def _set_flag(self, label: ctk.CTkLabel, url: str, size: tuple[int, int]) -> None:
+        image = self._flag_cache.get_ctk_image(self, url, size)
         if image:
             self._image_refs.append(image)
             label.configure(image=image, text="")
@@ -148,8 +163,8 @@ class MatchCenterPanel(ctk.CTkFrame):
             label.configure(image=None, text="")
 
     def _update_live_dashboard(self, match: Match) -> None:
-        self._set_flag(self._home_flag, match.home_flag_url)
-        self._set_flag(self._away_flag, match.away_flag_url)
+        self._set_flag(self._home_flag, match.home_flag_url, theme.FLAG_LIVE)
+        self._set_flag(self._away_flag, match.away_flag_url, theme.FLAG_LIVE)
         self._home_name.configure(text=match.home_name)
         self._away_name.configure(text=match.away_name)
         self._score_label.configure(text=f"{match.home_score}  -  {match.away_score}")
@@ -183,7 +198,7 @@ class MatchCenterPanel(ctk.CTkFrame):
 
     def _show_schedule(self, matches: list[Match]) -> None:
         self._live_container.pack_forget()
-        self._schedule_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self._schedule_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 10))
 
         for row in self._schedule_rows:
             row.destroy()
@@ -193,7 +208,7 @@ class MatchCenterPanel(ctk.CTkFrame):
             row = self._build_schedule_row(match)
             self._schedule_rows.append(row)
 
-        self._tick_countdowns(matches)
+        self._tick_countdowns()
 
     def _build_schedule_row(self, match: Match) -> ctk.CTkFrame:
         if match.is_finished:
@@ -204,81 +219,87 @@ class MatchCenterPanel(ctk.CTkFrame):
             bg = SCHEDULED_COLOR
 
         row = ctk.CTkFrame(self._schedule_scroll, fg_color=bg, corner_radius=8)
-        row.pack(fill="x", pady=4)
+        row.pack(fill="x", pady=theme.SCHEDULE_ROW_PADY)
 
         date_str = match.kickoff.strftime("%b %d  %H:%M")
         ctk.CTkLabel(
-            row, text=date_str, width=110, font=ctk.CTkFont(size=11), text_color="#aaaaaa"
-        ).pack(side="left", padx=(12, 8), pady=10)
+            row,
+            text=date_str,
+            width=130,
+            font=theme.font(theme.SCHEDULE_DATE),
+            text_color="#aaaaaa",
+        ).pack(side="left", padx=(12, 8), pady=8)
 
         teams_frame = ctk.CTkFrame(row, fg_color="transparent")
-        teams_frame.pack(side="left", fill="x", expand=True, pady=10)
+        teams_frame.pack(side="left", fill="x", expand=True, pady=8)
 
-        home_flag = self._flag_cache.get_ctk_image(self, match.home_flag_url)
+        home_flag = self._flag_cache.get_ctk_image(self, match.home_flag_url, theme.FLAG_SCHEDULE)
         if home_flag:
             self._image_refs.append(home_flag)
-            ctk.CTkLabel(teams_frame, text="", image=home_flag, width=22).pack(
-                side="left", padx=(0, 4)
+            ctk.CTkLabel(teams_frame, text="", image=home_flag, width=30).pack(
+                side="left", padx=(0, 6)
             )
         ctk.CTkLabel(
-            teams_frame, text=match.home_name, font=ctk.CTkFont(size=13)
+            teams_frame, text=match.home_name, font=theme.font(theme.SCHEDULE_TEAM)
         ).pack(side="left")
 
         ctk.CTkLabel(
-            teams_frame, text=" vs ", font=ctk.CTkFont(size=12), text_color="#888888"
-        ).pack(side="left", padx=4)
+            teams_frame,
+            text=" vs ",
+            font=theme.font(theme.SCHEDULE_DATE),
+            text_color="#888888",
+        ).pack(side="left", padx=6)
 
-        away_flag = self._flag_cache.get_ctk_image(self, match.away_flag_url)
+        away_flag = self._flag_cache.get_ctk_image(self, match.away_flag_url, theme.FLAG_SCHEDULE)
         if away_flag:
             self._image_refs.append(away_flag)
-            ctk.CTkLabel(teams_frame, text="", image=away_flag, width=22).pack(
-                side="left", padx=(0, 4)
+            ctk.CTkLabel(teams_frame, text="", image=away_flag, width=30).pack(
+                side="left", padx=(0, 6)
             )
         ctk.CTkLabel(
-            teams_frame, text=match.away_name, font=ctk.CTkFont(size=13)
+            teams_frame, text=match.away_name, font=theme.font(theme.SCHEDULE_TEAM)
         ).pack(side="left")
 
         status_frame = ctk.CTkFrame(row, fg_color="transparent")
-        status_frame.pack(side="right", padx=12, pady=10)
+        status_frame.pack(side="right", padx=12, pady=8)
 
         if match.is_finished:
             ctk.CTkLabel(
                 status_frame,
                 text=f"FT  {match.home_score} - {match.away_score}",
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=theme.font(theme.SCHEDULE_STATUS, "bold"),
             ).pack()
         elif match.is_live:
             ctk.CTkLabel(
                 status_frame,
                 text=f"LIVE {match.home_score}-{match.away_score} ({match.minute}')",
                 text_color=LIVE_ACCENT,
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=theme.font(theme.SCHEDULE_STATUS, "bold"),
             ).pack()
         else:
             lbl = ctk.CTkLabel(
                 status_frame,
                 text="",
-                font=ctk.CTkFont(size=12),
+                font=theme.font(theme.SCHEDULE_STATUS),
                 text_color="#5dade2",
             )
             lbl.pack()
             row._countdown_label = lbl  # type: ignore[attr-defined]
             row._kickoff = match.kickoff  # type: ignore[attr-defined]
 
-        group_lbl = ctk.CTkLabel(
+        ctk.CTkLabel(
             row,
             text=f"Grp {match.group_letter}",
-            width=48,
-            font=ctk.CTkFont(size=10),
+            width=52,
+            font=theme.font(theme.SCHEDULE_DATE),
             text_color="#777",
-        )
-        group_lbl.pack(side="right", padx=(0, 4), pady=10)
+        ).pack(side="right", padx=(0, 4), pady=8)
 
         return row
 
-    def _tick_countdowns(self, matches: list[Match]) -> None:
+    def _tick_countdowns(self) -> None:
         self._clear_countdown()
-        now = datetime.now()
+        now = local_now()
 
         for row in self._schedule_rows:
             if not hasattr(row, "_countdown_label"):
@@ -297,4 +318,4 @@ class MatchCenterPanel(ctk.CTkFrame):
                 else:
                     row._countdown_label.configure(text=f"in {mins}m {secs}s")  # type: ignore[attr-defined]
 
-        self._countdown_job = self.after(1000, lambda: self._tick_countdowns(matches))
+        self._countdown_job = self.after(1000, self._tick_countdowns)

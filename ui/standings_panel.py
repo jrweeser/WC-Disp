@@ -5,6 +5,7 @@ import customtkinter as ctk
 from data.flag_cache import FlagCache
 from data.tournament import TournamentState
 from models.team import Team
+from ui import theme
 
 QUALIFY_FG = "#2d6a4f"
 ROW_ALT = "#2a2a2a"
@@ -22,12 +23,22 @@ class StandingsPanel(ctk.CTkFrame):
         header = ctk.CTkLabel(
             self,
             text="Group Standings",
-            font=ctk.CTkFont(size=20, weight="bold"),
+            font=theme.font(theme.PANEL_TITLE, "bold"),
         )
-        header.pack(pady=(16, 8), padx=16, anchor="w")
+        header.pack(pady=(12, 6), padx=16, anchor="w")
 
         self._scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self._scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self._scroll.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        columns = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        columns.pack(fill="both", expand=True)
+        columns.grid_columnconfigure(0, weight=1)
+        columns.grid_columnconfigure(1, weight=1)
+
+        self._col_left = ctk.CTkFrame(columns, fg_color="transparent")
+        self._col_right = ctk.CTkFrame(columns, fg_color="transparent")
+        self._col_left.grid(row=0, column=0, sticky="new", padx=(0, 5))
+        self._col_right.grid(row=0, column=1, sticky="new", padx=(5, 0))
 
         self._group_frames: dict[str, ctk.CTkFrame] = {}
         self._row_widgets: dict[str, list[ctk.CTkFrame]] = {}
@@ -35,39 +46,54 @@ class StandingsPanel(ctk.CTkFrame):
     def refresh(self) -> None:
         self._image_refs.clear()
         groups, _ = self._state.snapshot()
-        for letter in sorted(groups.keys()):
+        for index, letter in enumerate(sorted(groups.keys())):
             group = groups[letter]
             if letter not in self._group_frames:
-                self._build_group_card(letter)
+                self._build_group_card(letter, index)
             self._update_group_card(letter, group.sorted_teams)
 
-    def _build_group_card(self, letter: str) -> None:
-        card = ctk.CTkFrame(self._scroll, corner_radius=10, fg_color="#1a1a1a")
-        card.pack(fill="x", pady=6)
+    def _column_for_index(self, index: int) -> ctk.CTkFrame:
+        return self._col_left if index % theme.GROUP_COLS == 0 else self._col_right
+
+    def _build_group_card(self, letter: str, index: int) -> None:
+        parent = self._column_for_index(index)
+        card = ctk.CTkFrame(parent, corner_radius=10, fg_color="#1a1a1a")
+        card.pack(fill="x", pady=4)
 
         title = ctk.CTkLabel(
             card,
             text=f"Group {letter}",
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=theme.font(theme.GROUP_TITLE, "bold"),
             anchor="w",
         )
-        title.pack(fill="x", padx=12, pady=(10, 6))
+        title.pack(fill="x", padx=10, pady=(8, 4))
 
-        header_row = ctk.CTkFrame(card, fg_color=HEADER_COLOR, corner_radius=6, height=28)
-        header_row.pack(fill="x", padx=8, pady=(0, 4))
+        header_row = ctk.CTkFrame(
+            card, fg_color=HEADER_COLOR, corner_radius=6, height=theme.GROUP_HEADER_HEIGHT
+        )
+        header_row.pack(fill="x", padx=6, pady=(0, 3))
         header_row.pack_propagate(False)
-        for col, width in [("Team", 150), ("W", 28), ("L", 28), ("D", 28), ("GD", 36), ("PTS", 36)]:
+        for col, width in [
+            ("Team", theme.GROUP_TEAM_WIDTH),
+            ("W", theme.GROUP_STAT_WIDTH),
+            ("L", theme.GROUP_STAT_WIDTH),
+            ("D", theme.GROUP_STAT_WIDTH),
+            ("GD", theme.GROUP_STAT_WIDTH + 4),
+            ("PTS", theme.GROUP_STAT_WIDTH + 4),
+        ]:
             ctk.CTkLabel(
                 header_row,
                 text=col,
                 width=width,
-                font=ctk.CTkFont(size=11, weight="bold"),
-            ).pack(side="left", padx=2)
+                font=theme.font(theme.GROUP_HEADER, "bold"),
+            ).pack(side="left", padx=1)
 
         rows: list[ctk.CTkFrame] = []
         for _ in range(4):
-            row = ctk.CTkFrame(card, fg_color=ROW_DEFAULT, corner_radius=4, height=32)
-            row.pack(fill="x", padx=8, pady=2)
+            row = ctk.CTkFrame(
+                card, fg_color=ROW_DEFAULT, corner_radius=4, height=theme.GROUP_ROW_HEIGHT
+            )
+            row.pack(fill="x", padx=6, pady=1)
             row.pack_propagate(False)
             rows.append(row)
 
@@ -85,14 +111,16 @@ class StandingsPanel(ctk.CTkFrame):
             bg = QUALIFY_FG if qualified else (ROW_ALT if idx % 2 else ROW_DEFAULT)
             row.configure(fg_color=bg)
 
-            team_cell = ctk.CTkFrame(row, fg_color="transparent", width=150)
-            team_cell.pack(side="left", padx=2)
+            team_cell = ctk.CTkFrame(row, fg_color="transparent", width=theme.GROUP_TEAM_WIDTH)
+            team_cell.pack(side="left", padx=1)
             team_cell.pack_propagate(False)
 
-            flag_image = self._flag_cache.get_ctk_image(self, team.flag_url)
+            flag_image = self._flag_cache.get_ctk_image(
+                self, team.flag_url, theme.FLAG_STANDINGS
+            )
             if flag_image:
                 self._image_refs.append(flag_image)
-                ctk.CTkLabel(team_cell, text="", image=flag_image, width=26).pack(
+                ctk.CTkLabel(team_cell, text="", image=flag_image, width=34).pack(
                     side="left", padx=(2, 4)
                 )
 
@@ -101,16 +129,16 @@ class StandingsPanel(ctk.CTkFrame):
                 team_cell,
                 text=name_text,
                 anchor="w",
-                font=ctk.CTkFont(size=12, weight="bold" if qualified else "normal"),
+                font=theme.font(theme.GROUP_ROW, "bold" if qualified else "normal"),
                 text_color="#e8f5e9" if qualified else None,
             ).pack(side="left", fill="x", expand=True)
 
             cols = [
-                (str(team.wins), 28),
-                (str(team.losses), 28),
-                (str(team.draws), 28),
-                (f"{team.goal_difference:+d}", 36),
-                (str(team.points), 36),
+                (str(team.wins), theme.GROUP_STAT_WIDTH),
+                (str(team.losses), theme.GROUP_STAT_WIDTH),
+                (str(team.draws), theme.GROUP_STAT_WIDTH),
+                (f"{team.goal_difference:+d}", theme.GROUP_STAT_WIDTH + 4),
+                (str(team.points), theme.GROUP_STAT_WIDTH + 4),
             ]
             for text, width in cols:
                 ctk.CTkLabel(
@@ -118,6 +146,6 @@ class StandingsPanel(ctk.CTkFrame):
                     text=text,
                     width=width,
                     anchor="center",
-                    font=ctk.CTkFont(size=12, weight="bold" if qualified else "normal"),
+                    font=theme.font(theme.GROUP_ROW, "bold" if qualified else "normal"),
                     text_color="#e8f5e9" if qualified else None,
-                ).pack(side="left", padx=2)
+                ).pack(side="left", padx=1)

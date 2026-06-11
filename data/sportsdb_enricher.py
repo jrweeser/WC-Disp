@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
 import requests
 
 from config import SPORTSDB_BASE_URL
+from data.time_utils import utc_iso_to_local_naive
 from models.match import Match, MatchEvent, MatchStatus
 
 logger = logging.getLogger(__name__)
@@ -15,10 +15,22 @@ FINISHED_STATUSES = {"FT", "AET", "AP", "PEN", "AWD", "WO"}
 
 
 class SportsDbEnricher:
-    """Adds live timelines from TheSportsDB (free public API key)."""
+    """TheSportsDB enrichment: local kickoff times and live timelines."""
 
     def __init__(self) -> None:
         self._event_index: dict[tuple[str, str, str], dict] | None = None
+        self._pair_index: dict[tuple[str, str], dict] | None = None
+
+    def apply_kickoffs(self, matches: list[Match]) -> None:
+        """Replace stadium-local API times with the viewer's local timezone."""
+        self._ensure_event_index()
+        for match in matches:
+            event = self._find_event(match)
+            if not event:
+                continue
+            local_kickoff = utc_iso_to_local_naive(event.get("strTimestamp", ""))
+            if local_kickoff:
+                match.kickoff = local_kickoff
 
     def enrich(self, matches: list[Match]) -> None:
         self._ensure_event_index()
@@ -35,6 +47,7 @@ class SportsDbEnricher:
         if self._event_index is not None:
             return
         self._event_index = {}
+        self._pair_index = {}
         try:
             response = requests.get(
                 f"{SPORTSDB_BASE_URL}/eventsseason.php",
@@ -43,26 +56,37 @@ class SportsDbEnricher:
             )
             response.raise_for_status()
             for event in response.json().get("events") or []:
-                key = self._event_key(
-                    event.get("strHomeTeam", ""),
-                    event.get("strAwayTeam", ""),
-                    event.get("dateEvent", ""),
-                )
+                home = event.get("strHomeTeam", "")
+                away = event.get("strAwayTeam", "")
+                date = event.get("dateEvent", "")
+                key = self._event_key(home, away, date)
                 self._event_index[key] = event
+                self._pair_index[self._pair_key(home, away)] = event
         except requests.RequestException as exc:
             logger.warning("TheSportsDB season events unavailable: %s", exc)
             self._event_index = {}
+            self._pair_index = {}
 
     def _event_key(self, home: str, away: str, date: str) -> tuple[str, str, str]:
         return (home.strip().lower(), away.strip().lower(), date)
+
+    def _pair_key(self, home: str, away: str) -> tuple[str, str]:
+        return (home.strip().lower(), away.strip().lower())
 
     def _find_event(self, match: Match) -> dict | None:
         if not self._event_index:
             return None
         date = match.kickoff.strftime("%Y-%m-%d")
-        return self._event_index.get(
+        event = self._event_index.get(
             self._event_key(match.home_name, match.away_name, date)
         )
+        if event:
+            return event
+        if self._pair_index:
+            return self._pair_index.get(
+                self._pair_key(match.home_name, match.away_name)
+            )
+        return None
 
     def _apply_event_status(self, match: Match, event: dict) -> None:
         status = (event.get("strStatus") or "").upper()

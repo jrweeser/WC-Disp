@@ -31,6 +31,8 @@ class WorldCup26Client(SportsDataClient):
         self._teams_by_id = {str(team["id"]): team for team in teams}
         groups = self._parse_groups(groups_data)
         matches = self._parse_matches(games)
+        self._sportsdb.apply_kickoffs(matches)
+        matches.sort(key=lambda m: m.kickoff)
         self._sportsdb.enrich(matches)
 
         live = next((m for m in matches if m.is_live), None)
@@ -108,6 +110,7 @@ class WorldCup26Client(SportsDataClient):
         return matches
 
     def _parse_kickoff(self, local_date: str) -> datetime:
+        """Parse stadium-local time; replaced with viewer-local time via SportsDB."""
         try:
             return datetime.strptime(local_date, "%m/%d/%Y %H:%M")
         except ValueError:

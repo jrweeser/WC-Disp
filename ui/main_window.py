@@ -7,6 +7,7 @@ from data.fetcher import DataFetcher
 from data.tournament import TournamentState
 from ui.match_center_panel import MatchCenterPanel
 from ui.standings_panel import StandingsPanel
+from ui.theme import WINDOW_HEIGHT, WINDOW_WIDTH
 
 
 class WorldCupTrackerApp(ctk.CTk):
@@ -17,8 +18,9 @@ class WorldCupTrackerApp(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("World Cup Tracker")
-        self.geometry("1280x800")
-        self.minsize(960, 600)
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.minsize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.maxsize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
         self._state = TournamentState()
         self._fetcher: DataFetcher | None = None
